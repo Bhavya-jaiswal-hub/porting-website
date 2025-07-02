@@ -1,37 +1,16 @@
-// src/pages/DriverDashboard.jsx
-import React, { useEffect, useState } from "react";
-// import io from "socket.io-client";
+import { useEffect, useState } from "react";
 import { EventBus } from "../utils/EventBus";
+import { v4 as uuidv4 } from "uuid";
 
-// const socket = io("https://your-backend-url.com"); // replace with actual backend URL
+const driverId = uuidv4(); // unique mock driver ID for this tab
 
 export default function DriverDashboard() {
   const [rideRequest, setRideRequest] = useState(null);
   const [rideStatus, setRideStatus] = useState("waiting"); // 'waiting', 'accepted', 'unavailable'
 
-//   useEffect(() => {
-//     socket.on("ride-request", (data) => {
-//       if (rideStatus === "waiting") {
-//         console.log("📥 Ride request received:", data);
-//         setRideRequest(data);
-//       }
-//     });
+ useEffect(() => {
+  console.log("📥 Listening for ride requests...");
 
-//     socket.on("ride-confirmed", (data) => {
-//       if (rideRequest?.id === data.rideId && data.driverId !== socket.id) {
-//         console.log("❌ Another driver accepted the ride:", data);
-//         setRideStatus("unavailable");
-//         setRideRequest(null);
-//       }
-//     });
-
-//     return () => {
-//       socket.off("ride-request");
-//       socket.off("ride-confirmed");
-//     };
-//   }, [rideRequest, rideStatus]);
-
-useEffect(() => {
   const handleRideRequest = (data) => {
     if (rideStatus === "waiting") {
       console.log("📥 Ride request received:", data);
@@ -40,7 +19,7 @@ useEffect(() => {
   };
 
   const handleRideConfirmed = (data) => {
-    if (rideRequest?.id === data.rideId && data.driverId !== "mock-driver-id") {
+    if (rideRequest?.id === data.rideId && data.driverId !== driverId) {
       console.log("❌ Another driver accepted the ride:", data);
       setRideStatus("unavailable");
       setRideRequest(null);
@@ -56,45 +35,31 @@ useEffect(() => {
   };
 }, [rideRequest, rideStatus]);
 
-
-//   const handleAccept = () => {
-//     if (!rideRequest) return;
-
-//     socket.emit("accept-ride", {
-//       rideId: rideRequest.id,
-//       driverId: socket.id,
-//       driverName: "Driver John" // Replace with actual driver name if available
-//     });
-
-//     setRideStatus("accepted");
-//   };       
-
 const handleAccept = () => {
   if (!rideRequest) return;
 
   EventBus.emit("ride-accepted", {
     rideId: rideRequest.id,
-    driverId: "mock-driver-id",
+    driverId: driverId,
     driverName: "Driver John",
   });
 
   setRideStatus("accepted");
 };
 
-
-
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100 p-6">
-      <h2 className="text-3xl font-bold mb-6 text-purple-800">Driver Dashboard</h2>
+    <div className="p-4">
+      <h1 className="text-3xl font-bold mb-4">Driver Dashboard</h1>
 
-      {rideStatus === "waiting" && rideRequest && (
-        <div className="bg-white p-6 rounded-xl shadow-xl w-full max-w-md text-center">
-          <p className="mb-4 text-gray-700">📍 <strong>Pickup:</strong> {rideRequest.pickup.address}</p>
-          <p className="mb-4 text-gray-700">🏁 <strong>Drop:</strong> {rideRequest.drop.address}</p>
-          <p className="mb-4 text-gray-700">💰 <strong>Fare:</strong> ₹{rideRequest.fare}</p>
+      {rideRequest && rideStatus === "waiting" && (
+        <div className="bg-white p-6 rounded-xl shadow-xl max-w-md mx-auto">
+          <p>📍 Pickup: {rideRequest.pickup.address}</p>
+          <p>🏁 Drop: {rideRequest.drop.address}</p>
+          <p>💰 Fare: ₹{rideRequest.fare}</p>
+
           <button
             onClick={handleAccept}
-            className="bg-green-600 hover:bg-green-700 text-white font-semibold px-6 py-3 rounded-lg"
+            className="mt-4 bg-green-600 hover:bg-green-700 text-white font-semibold px-6 py-3 rounded-lg"
           >
             ✅ Accept Ride
           </button>
@@ -106,7 +71,7 @@ const handleAccept = () => {
       )}
 
       {rideStatus === "unavailable" && (
-        <p className="text-red-600 text-xl mt-4">🚫 This ride has been taken by another driver.</p>
+        <p className="text-red-600 text-xl mt-4">🚫 This ride has already been accepted.</p>
       )}
     </div>
   );

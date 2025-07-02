@@ -19,6 +19,7 @@ const socket = {
 // const socket = io("https://your-backend-url.com"); // Replace with actual backend URL
 
 export default function LocationForm() {
+  console.log("📍 LocationForm loaded");
   const { isLoaded } = useJsApiLoader({
     googleMapsApiKey: API_KEY,
     libraries,
@@ -33,19 +34,31 @@ export default function LocationForm() {
   const [confirmedDriver, setConfirmedDriver] = useState(null);
 
   useEffect(() => {
-    socket.on("ride-confirmed", (data) => {
-      setConfirmedDriver(data.driverName);
-    });
+  const handleRideAccepted = (data) => {
+    setConfirmedDriver("MockDriver 🚚");
+  };
 
-    socket.on("ride-unavailable", () => {
-      alert("❌ This ride is no longer available");
-    });
+  EventBus.on("ride-accepted", handleRideAccepted);
 
-    return () => {
-      socket.off("ride-confirmed");
-      socket.off("ride-unavailable");
-    };
-  }, []);
+  return () => {
+    EventBus.off("ride-accepted", handleRideAccepted); // must use same function
+  };
+}, []);
+
+  // useEffect(() => {
+  //   socket.on("ride-confirmed", (data) => {
+  //     setConfirmedDriver(data.driverName);
+  //   });
+
+  //   socket.on("ride-unavailable", () => {
+  //     alert("❌ This ride is no longer available");
+  //   });
+
+  //   return () => {
+  //     socket.off("ride-confirmed");
+  //     socket.off("ride-unavailable");
+  //   };
+  // }, []);
 
   if (!isLoaded) {
     return (
@@ -132,15 +145,7 @@ export default function LocationForm() {
   setRequestSent(true);
 };
 
-useEffect(() => {
-  EventBus.on("ride-accepted", (data) => {
-    setConfirmedDriver("MockDriver 🚚");
-  });
 
-  return () => {
-    EventBus.off("ride-accepted");
-  };
-}, []);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-100 via-purple-100 to-pink-100 p-4">
