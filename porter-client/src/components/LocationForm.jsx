@@ -150,7 +150,7 @@ export default function LocationForm() {
   return (
   <div className="min-h-screen flex items-center justify-center bg-gradient-to-tr from-blue-100 via-purple-100 to-pink-100 px-4 py-10">
     <div className="bg-white w-full max-w-2xl p-8 rounded-3xl shadow-2xl border border-purple-100 transition-all duration-300">
-      <h2 className="text-4xl font-extrabold text-center text-purple-700 mb-8 tracking-tight">
+      <h2 className="text-4xl font-extrabold text-center text-red-700 mb-8 tracking-tight">
         🚛 Book a Truck in Agra
       </h2>
 
