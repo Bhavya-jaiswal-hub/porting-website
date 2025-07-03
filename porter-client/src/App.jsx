@@ -3,6 +3,7 @@ import HomePage from "./pages/HomePage";
 import DriverDashboard from "./pages/DriverDashboard";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -13,5 +14,7 @@ export default function App() {
         </Routes>
       </ErrorBoundary>
     </BrowserRouter>
+
+    
   );
 }

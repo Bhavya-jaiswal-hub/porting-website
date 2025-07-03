@@ -148,66 +148,87 @@ export default function LocationForm() {
 
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-100 via-purple-100 to-pink-100 p-4">
-      <div className="bg-white w-full max-w-xl p-8 rounded-2xl shadow-xl">
-        <h2 className="text-3xl font-bold text-center text-purple-700 mb-6">
-          🚛 Book Your Truck in Agra
-        </h2>
+  <div className="min-h-screen flex items-center justify-center bg-gradient-to-tr from-blue-100 via-purple-100 to-pink-100 px-4 py-10">
+    <div className="bg-white w-full max-w-2xl p-8 rounded-3xl shadow-2xl border border-purple-100 transition-all duration-300">
+      <h2 className="text-4xl font-extrabold text-center text-purple-700 mb-8 tracking-tight">
+        🚛 Book a Truck in Agra
+      </h2>
 
-        <div className="space-y-4">
+      <div className="space-y-6">
+        {/* Pickup Input */}
+        <div>
+          <label className="block text-sm font-semibold text-gray-600 mb-1">
+            📍 Pickup Location
+          </label>
           <GoogleAutocompleteInput
-            placeholder="📍 Enter Pickup Location"
+            placeholder="Enter Pickup Location"
             onPlaceSelect={(place) => setPickup(place)}
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400 shadow-sm"
           />
-
-          <GoogleAutocompleteInput
-            placeholder="🏁 Enter Drop Location"
-            onPlaceSelect={(place) => setDrop(place)}
-          />
-
-          <button
-            onClick={handleEstimate}
-            disabled={loading}
-            className={`w-full ${
-              loading ? "bg-purple-300" : "bg-purple-600 hover:bg-purple-700"
-            } text-white font-semibold py-3 rounded-lg transition duration-300`}
-          >
-            {loading ? "Estimating..." : "🚦 Estimate Fare"}
-          </button>
-
-          {distance && (
-            <div className="bg-gray-50 p-4 rounded-xl mt-4 shadow-inner">
-              <p className="text-gray-700 text-lg">
-                <strong>Distance:</strong> {distance} km
-              </p>
-              <p className="text-gray-700 text-lg">
-                <strong>Estimated Fare:</strong> ₹{fare}
-              </p>
-            </div>
-          )}
-
-          {fare && !confirmedDriver && (
-            <button
-              onClick={handleBooking}
-              className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 mt-4 rounded-lg transition duration-300"
-            >
-              📡 Send Ride Request
-            </button>
-          )}
-
-          {confirmedDriver && (
-            <div className="mt-4 text-center text-green-700 font-semibold">
-              ✅ Ride confirmed with driver: {confirmedDriver}
-            </div>
-          )}
-
-          {requestSent && !confirmedDriver && (
-            <div className="mt-4 text-center text-yellow-700 font-semibold">
-              ⏳ Waiting for a driver to accept...
-            </div>
-          )}
         </div>
+
+        {/* Drop Input */}
+        <div>
+          <label className="block text-sm font-semibold text-gray-600 mb-1">
+            🏁 Drop Location
+          </label>
+          <GoogleAutocompleteInput
+            placeholder="Enter Drop Location"
+            onPlaceSelect={(place) => setDrop(place)}
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400 shadow-sm"
+          />
+        </div>
+
+        {/* Estimate Fare Button */}
+        <button
+          onClick={handleEstimate}
+          disabled={loading}
+          className={`w-full text-white font-bold py-3 rounded-xl transition-all duration-300 ${
+            loading
+              ? "bg-purple-300 cursor-not-allowed"
+              : "bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 shadow-md hover:shadow-lg"
+          }`}
+        >
+          {loading ? "Estimating..." : "🚦 Estimate Fare"}
+        </button>
+
+        {/* Distance and Fare */}
+        {distance && (
+          <div className="bg-gray-50 p-5 rounded-xl border border-gray-200 shadow-inner text-center">
+            <p className="text-gray-700 text-lg">
+              <strong>Distance:</strong> {distance} km
+            </p>
+            <p className="text-gray-700 text-lg">
+              <strong>Estimated Fare:</strong> ₹{fare}
+            </p>
+          </div>
+        )}
+
+        {/* Book Button */}
+        {fare && !confirmedDriver && (
+          <button
+            onClick={handleBooking}
+            className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 mt-2 rounded-xl transition duration-300 shadow-lg hover:shadow-xl"
+          >
+            📡 Send Ride Request
+          </button>
+        )}
+
+        {/* Ride Confirmed */}
+        {confirmedDriver && (
+          <div className="text-center text-green-600 font-semibold text-lg mt-4">
+            ✅ Ride confirmed with driver: <span className="font-bold">{confirmedDriver}</span>
+          </div>
+        )}
+
+        {/* Waiting Message */}
+        {requestSent && !confirmedDriver && (
+          <div className="text-center text-yellow-600 font-semibold text-lg mt-4 animate-pulse">
+            ⏳ Looking for a driver nearby...
+          </div>
+        )}
       </div>
     </div>
-  );
+  </div>
+);
 }
