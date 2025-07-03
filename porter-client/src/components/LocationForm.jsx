@@ -6,7 +6,7 @@ import GoogleAutocompleteInput from "./GoogleAutocompleteInput";
 // import io from "socket.io-client";
 
 const API_KEY = "AIzaSyAFh8YiJxXIUKPpn54IUORCf3IePgsO-nc";
-const RATE_PER_KM = 30;
+// const RATE_PER_KM = 30;
 const libraries = ["places"];
 // MOCK SOCKET (for testing without backend)
 const socket = {
@@ -14,6 +14,44 @@ const socket = {
   on: (...args) => console.log("🔌 socket.on (mock):", ...args),
   off: (...args) => console.log("🔌 socket.off (mock):", ...args),
 };
+
+
+function calculateFare(distanceInKm) {
+  const baseFare = 40;
+  const now = new Date();
+  const hours = now.getHours();
+
+  let perKmRate = 0;
+
+  // Morning: 8 AM – 11 AM
+  if (hours >= 8 && hours < 11) {
+    if (distanceInKm <= 5) perKmRate = 19;
+    else if (distanceInKm <= 15) perKmRate = 14;
+    else perKmRate = 14;
+
+  // Afternoon: 11 AM – 5 PM
+  } else if (hours >= 11 && hours < 17) {
+    if (distanceInKm <= 5) perKmRate = 17.5;
+    else if (distanceInKm <= 15) perKmRate = 12.5;
+    else perKmRate = 9.5;
+
+  // Evening: 5 PM – 12 AM
+  } else if (hours >= 17 && hours < 24) {
+    if (distanceInKm <= 5) perKmRate = 19;
+    else if (distanceInKm <= 15) perKmRate = 14;
+    else perKmRate = 14;
+
+  // Early morning fallback
+  } else {
+    perKmRate = 14;
+  }
+
+  const variableFare = distanceInKm * perKmRate;
+  const totalFare = baseFare + variableFare;
+
+  return Math.round(totalFare);
+}
+
 
 
 // const socket = io("https://your-backend-url.com"); // Replace with actual backend URL
@@ -69,45 +107,46 @@ export default function LocationForm() {
   }
 
   const handleEstimate = () => {
-    if (!pickup?.lat || !pickup?.lng || !drop?.lat || !drop?.lng) {
-      alert("❗ Please select both pickup and drop locations from suggestions.");
-      return;
-    }
+  if (!pickup?.lat || !pickup?.lng || !drop?.lat || !drop?.lng) {
+    alert("❗ Please select both pickup and drop locations from suggestions.");
+    return;
+  }
 
-    setLoading(true);
+  setLoading(true);
 
-    const service = new window.google.maps.DistanceMatrixService();
+  const service = new window.google.maps.DistanceMatrixService();
 
-    service.getDistanceMatrix(
-      {
-        origins: [{ lat: pickup.lat, lng: pickup.lng }],
-        destinations: [{ lat: drop.lat, lng: drop.lng }],
-        travelMode: window.google.maps.TravelMode.DRIVING,
-        unitSystem: window.google.maps.UnitSystem.METRIC,
-      },
-      (response, status) => {
-        setLoading(false);
+  service.getDistanceMatrix(
+    {
+      origins: [{ lat: pickup.lat, lng: pickup.lng }],
+      destinations: [{ lat: drop.lat, lng: drop.lng }],
+      travelMode: window.google.maps.TravelMode.DRIVING,
+      unitSystem: window.google.maps.UnitSystem.METRIC,
+    },
+    (response, status) => {
+      setLoading(false);
 
-        if (status !== "OK") {
-          console.error("Distance Matrix Error:", status, response);
-          alert("❌ Failed to fetch distance. Please try again.");
-          return;
-        }
-
-        const result = response.rows[0].elements[0];
-
-        if (result.status === "OK") {
-          const distanceInKm = result.distance.value / 1000;
-          const estimatedFare = (distanceInKm * RATE_PER_KM).toFixed(0);
-
-          setDistance(distanceInKm.toFixed(1));
-          setFare(estimatedFare);
-        } else {
-          alert("🚫 No route found between selected locations.");
-        }
+      if (status !== "OK") {
+        console.error("Distance Matrix Error:", status, response);
+        alert("❌ Failed to fetch distance. Please try again.");
+        return;
       }
-    );
-  };
+
+      const result = response.rows[0].elements[0];
+
+      if (result.status === "OK") {
+        const distanceInKm = result.distance.value / 1000;
+        const roundedDistance = parseFloat(distanceInKm.toFixed(1));
+        const estimatedFare = calculateFare(roundedDistance);
+
+        setDistance(roundedDistance);
+        setFare(estimatedFare);
+      } else {
+        alert("🚫 No route found between selected locations.");
+      }
+    }
+  );
+};
 
   // const handleBooking = () => {
   //   if (!pickup || !drop || !fare) {
@@ -151,7 +190,7 @@ export default function LocationForm() {
   <div className="min-h-screen flex items-center justify-center bg-gradient-to-tr from-blue-100 via-purple-100 to-pink-100 px-4 py-10">
     <div className="bg-white w-full max-w-2xl p-8 rounded-3xl shadow-2xl border border-purple-100 transition-all duration-300">
       <h2 className="text-4xl font-extrabold text-center text-red-700 mb-8 tracking-tight">
-        🚛 Book a Truck in Agra
+        🚛 Book a Bike in Agra
       </h2>
 
       <div className="space-y-6">
