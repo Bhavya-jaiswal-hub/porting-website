@@ -12,7 +12,7 @@ export default function Navbar() {
 
       {/* Center Nav Links */}
       <div className="hidden md:flex space-x-8 text-black font-medium">
-        <a href="#" className="hover:text-blue-600">For Enterprise</a>
+        <a href="#" className="hover:text-blue-600">Customer</a>
         <a href="#" className="hover:text-blue-600">Delivery Partners</a>
       </div>
 
