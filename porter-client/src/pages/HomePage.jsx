@@ -1,15 +1,53 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaMotorcycle, FaTruck, FaCouch, FaShippingFast } from "react-icons/fa";
 import Navbar from "../components/Navbar";
-import bgImage from "../assets/banner.jpg"; // ✅ replace with your image path
+import bgImage from "../assets/banner.jpg";
+import socket from "../socket/socket";
 
 export default function HomePage() {
   const navigate = useNavigate();
 
   const handleVehicleSelect = (vehicleType) => {
-    navigate(`/book/${vehicleType}`);
+  const pickup = localStorage.getItem("pickupLocation");
+  const drop = localStorage.getItem("dropLocation");
+
+  if (!pickup || !drop) {
+    navigate("/location"); // Navigate to LocationForm if locations are missing
+    return;
+  }
+
+  const rideDetails = {
+    vehicleType,
+    pickup,
+    drop,
   };
+
+  // Emit ride request to backend
+  socket.emit("rideRequest", rideDetails);
+
+  // Navigate to booking page with vehicle type
+  navigate(`/book/${vehicleType}`);
+};
+
+
+  useEffect(() => {
+    // Listen for confirmation or rejection (example events)
+    socket.on("rideAccepted", (data) => {
+      console.log("Driver accepted ride:", data);
+      // Optionally navigate or update UI here
+    });
+
+    socket.on("rideBooked", () => {
+      console.log("Ride already booked by another driver");
+      // You can show toast or status here
+    });
+
+    return () => {
+      socket.off("rideAccepted");
+      socket.off("rideBooked");
+    };
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
@@ -17,24 +55,17 @@ export default function HomePage() {
 
       {/* Hero Section */}
       <div className="relative w-full" style={{ height: "70vh" }}>
-        {/* Background Image */}
-        <img
-          src={bgImage}
-          alt="Banner"
-          className="w-full h-full object-cover"
-        />
+        <img src={bgImage} alt="Banner" className="w-full h-full object-cover" />
 
-        {/* Headline Text Overlay */}
         <div className="absolute top-1/4 left-1/2 transform -translate-x-1/2 text-center px-4">
           <h1 className="text-3xl md:text-5xl font-bold text-white drop-shadow-lg">
             Delivery hai, ho jayega!
           </h1>
         </div>
 
-        {/* Vehicle Selection Box overlapping image bottom */}
+        {/* Vehicle Selection Box */}
         <div className="absolute left-1/2 -translate-x-1/2 bottom-[-130px] w-[95%] max-w-5xl z-10">
           <div className="bg-white bg-opacity-95 backdrop-blur-md p-6 md:p-10 rounded-2xl shadow-2xl">
-            {/* Header + City Selector */}
             <div className="flex flex-col sm:flex-row items-center justify-between mb-4 gap-4">
               <h2 className="text-xl sm:text-2xl font-bold text-purple-700 text-center sm:text-left">
                 🚚 Select Vehicle Type
@@ -44,11 +75,9 @@ export default function HomePage() {
                 defaultValue="Agra"
               >
                 <option value="Agra">📍 Agra</option>
-                {/* Add more cities here */}
               </select>
             </div>
 
-            {/* Vehicle Grid */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <VehicleCard
                 icon={<FaMotorcycle size={28} />}

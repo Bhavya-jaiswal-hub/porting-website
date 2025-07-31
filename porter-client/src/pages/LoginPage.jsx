@@ -4,19 +4,41 @@ import { useNavigate } from "react-router-dom";
 const LoginPage = () => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    username: "",
+    email: "",
     password: "",
   });
+  const [error, setError] = useState("");
 
   const handleChange = (e) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Add your login logic here (API call, token store, etc.)
-    console.log("Logging in with:", formData);
-    navigate("/home"); // Redirect after successful login
+    setError("");
+
+    try {
+      const response = await fetch("http://localhost:8080/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        localStorage.setItem("token", data.token);
+        console.log("Login successful:", data);
+        navigate("/home");
+      } else {
+        setError(data.message || "Invalid credentials");
+      }
+    } catch (error) {
+      console.error("Login error:", error);
+      setError("Something went wrong. Try again.");
+    }
   };
 
   return (
@@ -25,15 +47,22 @@ const LoginPage = () => {
         <h2 className="text-3xl font-bold text-center text-purple-700 mb-6">
           Login to Delivery King
         </h2>
+
         <form onSubmit={handleSubmit} className="space-y-5">
+          {error && (
+            <div className="bg-red-100 text-red-700 p-2 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Username
+              Email
             </label>
             <input
-              type="text"
-              name="username"
-              value={formData.username}
+              type="email"
+              name="email"
+              value={formData.email}
               onChange={handleChange}
               required
               className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-400"

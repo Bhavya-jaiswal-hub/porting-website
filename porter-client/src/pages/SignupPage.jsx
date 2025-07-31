@@ -6,22 +6,48 @@ import { useNavigate } from "react-router-dom";
 const SignupPage = () => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    username: "",
+    name: "",
+    email: "",
     password: "",
   });
+
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSignup = (e) => {
+  const handleSignup = async (e) => {
     e.preventDefault();
+    setLoading(true);
 
-    // You can add actual signup logic or API call here
-    console.log("Signed up with:", formData);
+    try {
+      const res = await fetch("http://localhost:8080/api/auth/signup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: formData.name.trim(),
+          email: formData.email.trim(),
+          password: formData.password,
+        }),
+      });
 
-    // Redirect to Welcome page or Home
-    navigate("/welcome");
+      const data = await res.json();
+
+      if (res.ok) {
+        console.log("Signup successful:", data);
+        navigate("/welcome");
+      } else {
+        alert(data.message || "Signup failed");
+      }
+    } catch (error) {
+      console.error("Signup error:", error);
+      alert("Something went wrong during signup");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -32,20 +58,39 @@ const SignupPage = () => {
         </h2>
         <form onSubmit={handleSignup}>
           <div className="mb-4">
-            <label className="block mb-1 text-sm font-medium text-gray-700">Username</label>
+            <label className="block mb-1 text-sm font-medium text-gray-700">
+              Username
+            </label>
             <input
               type="text"
-              name="username"
+              name="name"
               required
-              value={formData.username}
+              value={formData.name}
               onChange={handleChange}
               className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-400"
               placeholder="Enter username"
             />
           </div>
 
+          <div className="mb-4">
+            <label className="block mb-1 text-sm font-medium text-gray-700">
+              Email
+            </label>
+            <input
+              type="email"
+              name="email"
+              required
+              value={formData.email}
+              onChange={handleChange}
+              className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-400"
+              placeholder="Enter email"
+            />
+          </div>
+
           <div className="mb-6">
-            <label className="block mb-1 text-sm font-medium text-gray-700">Password</label>
+            <label className="block mb-1 text-sm font-medium text-gray-700">
+              Password
+            </label>
             <input
               type="password"
               name="password"
@@ -59,9 +104,10 @@ const SignupPage = () => {
 
           <button
             type="submit"
+            disabled={loading}
             className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200"
           >
-            Sign Up
+            {loading ? "Signing Up..." : "Sign Up"}
           </button>
         </form>
       </div>

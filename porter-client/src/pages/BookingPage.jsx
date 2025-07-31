@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import LocationForm from "../components/LocationForm";
 import Navbar from "../components/Navbar";
-import { EventBus } from "../utils/EventBus";
+import socket from "../socket/socket";
 
 export default function BookingPage() {
   const { vehicleType } = useParams();
@@ -12,21 +12,28 @@ export default function BookingPage() {
   const [driverInfo, setDriverInfo] = useState(null);
 
   useEffect(() => {
-    const handleRideAccepted = (driver) => {
+    // Listen for driver acceptance
+    socket.on("rideAccepted", (driver) => {
       setRideConfirmed(true);
       setDriverInfo(driver);
-    };
+    });
 
-    EventBus.on("rideAccepted", handleRideAccepted);
+    // Optional: handle if ride is booked already by another driver
+    socket.on("rideAlreadyBooked", () => {
+      alert("Ride has already been accepted by another driver.");
+      setRideRequested(false);
+    });
 
-    return () => {
-      EventBus.off("rideAccepted", handleRideAccepted);
+    return () => {  
+      socket.off("rideAccepted");
+      socket.off("rideAlreadyBooked");
     };
   }, []);
 
   const handleRideRequest = (rideDetails) => {
     setRideRequested(true);
-    EventBus.emit("requestRide", {
+
+    socket.emit("requestRide", {
       ...rideDetails,
       vehicle: vehicleType,
     });

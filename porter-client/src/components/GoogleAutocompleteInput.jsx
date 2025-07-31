@@ -5,6 +5,9 @@ export default function GoogleAutocompleteInput({ placeholder, onPlaceSelect }) 
   const autocompleteRef = useRef(null);
 
   useEffect(() => {
+    let retries = 0;
+    const maxRetries = 50;
+
     const interval = setInterval(() => {
       if (
         window.google &&
@@ -35,6 +38,13 @@ export default function GoogleAutocompleteInput({ placeholder, onPlaceSelect }) 
 
         clearInterval(interval);
       }
+
+      if (retries >= maxRetries) {
+        console.warn("⚠️ Google Maps API not loaded after several attempts.");
+        clearInterval(interval);
+      }
+
+      retries++;
     }, 200);
 
     return () => {
