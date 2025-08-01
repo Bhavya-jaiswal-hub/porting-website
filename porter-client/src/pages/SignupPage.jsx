@@ -1,10 +1,13 @@
 // src/pages/SignupPage.jsx
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import { useNavigate } from "react-router-dom";
+import { AuthContext } from "../context/AuthContext";
 
 const SignupPage = () => {
   const navigate = useNavigate();
+  const { login } = useContext(AuthContext); // ✅ use login function from AuthContext
+
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -12,6 +15,14 @@ const SignupPage = () => {
   });
 
   const [loading, setLoading] = useState(false);
+
+  // Redirect if already logged in
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      navigate("/home"); // Redirect to home if already logged in
+    }
+  }, [navigate]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -38,7 +49,11 @@ const SignupPage = () => {
 
       if (res.ok) {
         console.log("Signup successful:", data);
-        navigate("/welcome");
+
+        // ✅ Store token and set login state via AuthContext
+        localStorage.setItem("token", data.token);
+        login(data.token); // update auth context
+        navigate("/home");
       } else {
         alert(data.message || "Signup failed");
       }
@@ -49,7 +64,6 @@ const SignupPage = () => {
       setLoading(false);
     }
   };
-
   return (
     <div className="min-h-screen bg-gradient-to-r from-purple-500 to-pink-500 flex justify-center items-center p-4">
       <div className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-sm">

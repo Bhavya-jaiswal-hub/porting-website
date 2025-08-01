@@ -1,13 +1,24 @@
-import React, { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 const LoginPage = () => {
   const navigate = useNavigate();
+  const { isAuthenticated, login } = useAuth();
+
   const [formData, setFormData] = useState({
     email: "",
     password: "",
   });
+
   const [error, setError] = useState("");
+
+  // ✅ Redirect to /home if already logged in
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate("/home");
+    }
+  }, [isAuthenticated, navigate]);
 
   const handleChange = (e) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -29,8 +40,7 @@ const LoginPage = () => {
       const data = await response.json();
 
       if (response.ok) {
-        localStorage.setItem("token", data.token);
-        console.log("Login successful:", data);
+        login(data.token); // Store token and update context
         navigate("/home");
       } else {
         setError(data.message || "Invalid credentials");
@@ -40,6 +50,7 @@ const LoginPage = () => {
       setError("Something went wrong. Try again.");
     }
   };
+
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-r from-purple-500 to-pink-500 px-4">
