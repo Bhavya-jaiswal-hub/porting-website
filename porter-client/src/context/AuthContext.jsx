@@ -34,13 +34,20 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, login, logout }}>
+    <AuthContext.Provider
+      value={{
+        isAuthenticated,
+        setIsAuthenticated, // ✅ Expose this to fix the error
+        login,
+        logout,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
 }
 
-// ✅ Add this custom hook
+// ✅ Custom hook for consuming context
 export function useAuth() {
   return useContext(AuthContext);
 }

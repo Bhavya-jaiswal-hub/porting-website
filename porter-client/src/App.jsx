@@ -4,8 +4,10 @@ import BookingPage from "./pages/BookingPage";
 import LoginPage from "./pages/LoginPage";
 import WelcomePage from "./pages/WelcomePage";
 import ProtectedRoute from "./components/ProtectedRoute";
-import SignupPage from './pages/SignupPage';
-import LocationForm from './components/LocationForm';
+import PublicRoute from "./components/PublicRoute";
+import SignupPage from "./pages/SignupPage";
+import VerifyOtpPage from "./pages/VerifyOtpPage";
+import LocationForm from "./components/LocationForm";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
 export default function App() {
@@ -15,8 +17,30 @@ export default function App() {
         <Routes>
           {/* Public Routes */}
           <Route path="/" element={<WelcomePage />} />
-          <Route path="/signup" element={<SignupPage />} />
-          <Route path="/login" element={<LoginPage />} />
+          <Route
+            path="/signup"
+            element={
+              <PublicRoute>
+                <SignupPage />
+              </PublicRoute>
+            }
+          />
+          <Route
+            path="/login"
+            element={
+              <PublicRoute>
+                <LoginPage />
+              </PublicRoute>
+            }
+          />
+          <Route
+            path="/verify-otp"
+            element={
+              <PublicRoute>
+                <VerifyOtpPage />
+              </PublicRoute>
+            }
+          />
 
           {/* Protected Routes */}
           <Route

@@ -1,13 +1,10 @@
 // src/pages/SignupPage.jsx
 
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AuthContext } from "../context/AuthContext";
 
 const SignupPage = () => {
   const navigate = useNavigate();
-  const { login } = useContext(AuthContext); // ✅ use login function from AuthContext
-
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -16,54 +13,50 @@ const SignupPage = () => {
 
   const [loading, setLoading] = useState(false);
 
-  // Redirect if already logged in
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      navigate("/home"); // Redirect to home if already logged in
-    }
-  }, [navigate]);
-
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSignup = async (e) => {
-    e.preventDefault();
-    setLoading(true);
+ const handleSignup = async (e) => {
+  e.preventDefault();
+  setLoading(true);
 
-    try {
-      const res = await fetch("http://localhost:8080/api/auth/signup", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: formData.name.trim(),
-          email: formData.email.trim(),
-          password: formData.password,
-        }),
-      });
+  try {
+    const res = await fetch("http://localhost:8080/api/auth/send-otp", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        password: formData.password,
+      }),
+    });
 
-      const data = await res.json();
+    const data = await res.json();
 
-      if (res.ok) {
-        console.log("Signup successful:", data);
+    if (res.ok) {
+      console.log("OTP sent to:", formData.email);
 
-        // ✅ Store token and set login state via AuthContext
-        localStorage.setItem("token", data.token);
-        login(data.token); // update auth context
-        navigate("/home");
-      } else {
-        alert(data.message || "Signup failed");
-      }
-    } catch (error) {
-      console.error("Signup error:", error);
-      alert("Something went wrong during signup");
-    } finally {
-      setLoading(false);
+      // ✅ Store form data temporarily in localStorage
+      localStorage.setItem("signupName", formData.name);
+      localStorage.setItem("signupEmail", formData.email);
+      localStorage.setItem("signupPassword", formData.password);
+
+      // ✅ Navigate to OTP verification page
+      navigate("/verify-otp");
+    } else {
+      alert(data.message || "Failed to send OTP");
     }
-  };
+  } catch (error) {
+    console.error("OTP send error:", error);
+    alert("Something went wrong");
+  } finally {
+    setLoading(false);
+  }
+};
+
   return (
     <div className="min-h-screen bg-gradient-to-r from-purple-500 to-pink-500 flex justify-center items-center p-4">
       <div className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-sm">
