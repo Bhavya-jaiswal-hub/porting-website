@@ -9,38 +9,20 @@ export default function HomePage() {
   const navigate = useNavigate();
 
   const handleVehicleSelect = (vehicleType) => {
-  const pickup = localStorage.getItem("pickupLocation");
-  const drop = localStorage.getItem("dropLocation");
+    // Optional: store selected type for backup
+    localStorage.setItem("selectedVehicleType", vehicleType);
 
-  if (!pickup || !drop) {
-    navigate("/location"); // Navigate to LocationForm if locations are missing
-    return;
-  }
-
-  const rideDetails = {
-    vehicleType,
-    pickup,
-    drop,
+    // Navigate to the correct booking route
+    navigate(`/book/${vehicleType}`);
   };
 
-  // Emit ride request to backend
-  socket.emit("rideRequest", rideDetails);
-
-  // Navigate to booking page with vehicle type
-  navigate(`/book/${vehicleType}`);
-};
-
-
   useEffect(() => {
-    // Listen for confirmation or rejection (example events)
     socket.on("rideAccepted", (data) => {
       console.log("Driver accepted ride:", data);
-      // Optionally navigate or update UI here
     });
 
     socket.on("rideBooked", () => {
       console.log("Ride already booked by another driver");
-      // You can show toast or status here
     });
 
     return () => {

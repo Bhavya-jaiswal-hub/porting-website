@@ -1,5 +1,6 @@
+// File: src/components/LocationForm.jsx
 import React, { useState, useEffect } from "react";
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from "react-router-dom";
 import { useJsApiLoader } from "@react-google-maps/api";
 import GoogleAutocompleteInput from "./GoogleAutocompleteInput";
 import socket from "../socket/socket";
@@ -7,7 +8,7 @@ import socket from "../socket/socket";
 const API_KEY = "AIzaSyAFh8YiJxXIUKPpn54IUORCf3IePgsO-nc";
 const libraries = ["places"];
 
-// Fare calculation logic
+// Fare calculation helper
 function calculateFare(distanceInKm) {
   const baseFare = 40;
   const now = new Date();
@@ -25,9 +26,17 @@ function calculateFare(distanceInKm) {
   return Math.round(baseFare + distanceInKm * perKmRate);
 }
 
-export default function LocationForm() {
-  const { vehicleType } = useParams();
+export default function LocationForm({ vehicleType: vehicleTypeProp }) {
+  const params = useParams();
+  const navigate = useNavigate();
   const { isLoaded } = useJsApiLoader({ googleMapsApiKey: API_KEY, libraries });
+
+  // Always try props first, then URL params, then localStorage
+  const vehicleType =
+    vehicleTypeProp ||
+    params.vehicleType ||
+    localStorage.getItem("selectedVehicleType") ||
+    "";
 
   const [pickup, setPickup] = useState(null);
   const [drop, setDrop] = useState(null);
@@ -39,10 +48,19 @@ export default function LocationForm() {
 
   const userId = localStorage.getItem("userId") || "guest";
 
-  // Socket event listeners
+  // Save vehicleType for refresh persistence
+  useEffect(() => {
+    if (vehicleType) {
+      localStorage.setItem("selectedVehicleType", vehicleType);
+    }
+  }, [vehicleType]);
+
+  // Listen for backend responses
   useEffect(() => {
     socket.on("ride-confirmed", (data) => {
-      setConfirmedDriver(data.driverName || "Driver 🚚");
+      if (data.vehicleType === vehicleType) {
+        setConfirmedDriver(data.driverName || "Driver 🚚");
+      }
     });
 
     socket.on("ride-unavailable", () => {
@@ -53,9 +71,9 @@ export default function LocationForm() {
       socket.off("ride-confirmed");
       socket.off("ride-unavailable");
     };
-  }, []);
+  }, [vehicleType]);
 
-  // Estimate distance and fare
+  // Estimate fare
   const handleEstimate = () => {
     if (!pickup?.lat || !pickup?.lng || !drop?.lat || !drop?.lng) {
       alert("❗ Please select both pickup and drop locations.");
@@ -92,7 +110,7 @@ export default function LocationForm() {
     );
   };
 
-  // Send booking request to backend
+  // Send booking request
   const handleBooking = () => {
     if (!pickup || !drop || !fare) {
       alert("Please provide pickup, drop, and fare.");
@@ -115,9 +133,13 @@ export default function LocationForm() {
       fareEstimate: fare,
     };
 
+    localStorage.setItem("lastRideRequest", JSON.stringify(bookingRequest));
+
     socket.emit("ride-request", bookingRequest);
     setRequestSent(true);
   };
+
+  if (!isLoaded) return <div>Loading Map...</div>;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-tr from-blue-100 via-purple-100 to-pink-100 px-4 py-10">
@@ -127,6 +149,7 @@ export default function LocationForm() {
         </h2>
 
         <div className="space-y-6">
+          {/* Pickup */}
           <div>
             <label className="block text-sm font-semibold text-gray-600 mb-1">
               📍 Pickup Location
@@ -137,6 +160,7 @@ export default function LocationForm() {
             />
           </div>
 
+          {/* Drop */}
           <div>
             <label className="block text-sm font-semibold text-gray-600 mb-1">
               🏁 Drop Location
@@ -147,6 +171,7 @@ export default function LocationForm() {
             />
           </div>
 
+          {/* Estimate Fare */}
           <button
             onClick={handleEstimate}
             disabled={loading}
@@ -159,6 +184,7 @@ export default function LocationForm() {
             {loading ? "Estimating..." : "🚦 Estimate Fare"}
           </button>
 
+          {/* Fare Display */}
           {distance && (
             <div className="bg-gray-50 p-5 rounded-xl text-center">
               <p className="text-gray-700 text-lg">
@@ -170,6 +196,7 @@ export default function LocationForm() {
             </div>
           )}
 
+          {/* Send Request */}
           {fare && !confirmedDriver && (
             <button
               onClick={handleBooking}
@@ -179,15 +206,17 @@ export default function LocationForm() {
             </button>
           )}
 
+          {/* Confirmation */}
           {confirmedDriver && (
             <div className="text-center text-green-600 font-semibold text-lg mt-4">
               ✅ Ride confirmed with driver: <strong>{confirmedDriver}</strong>
             </div>
           )}
 
+          {/* Waiting Status */}
           {requestSent && !confirmedDriver && (
             <div className="text-center text-yellow-600 font-semibold text-lg mt-4 animate-pulse">
-              ⏳ Looking for a driver nearby...
+              ⏳ Looking for a {vehicleType} driver nearby...
             </div>
           )}
         </div>

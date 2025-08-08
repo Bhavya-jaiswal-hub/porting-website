@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom"; 
 import HomePage from "./pages/HomePage";
 import BookingPage from "./pages/BookingPage";
 import LoginPage from "./pages/LoginPage";
@@ -7,7 +7,6 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import PublicRoute from "./components/PublicRoute";
 import SignupPage from "./pages/SignupPage";
 import VerifyOtpPage from "./pages/VerifyOtpPage";
-import LocationForm from "./components/LocationForm";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
 export default function App() {
@@ -51,19 +50,13 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+          
+          {/* When a vehicle is clicked, BookingPage loads with vehicleType */}
           <Route
             path="/book/:vehicleType"
             element={
               <ProtectedRoute>
                 <BookingPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/location"
-            element={
-              <ProtectedRoute>
-                <LocationForm />
               </ProtectedRoute>
             }
           />
