@@ -4,12 +4,13 @@ import { useParams, useNavigate } from "react-router-dom";
 import LocationForm from "../components/LocationForm";
 import Navbar from "../components/Navbar";
 import socket from "../socket/socket";
+import axios from "axios";
 
 export default function BookingPage() {
   const params = useParams();
   const navigate = useNavigate();
 
-  // Try to get vehicleType from URL or localStorage
+  // Get vehicleType from URL or localStorage
   const [vehicleType, setVehicleType] = useState(
     params.vehicleType || localStorage.getItem("selectedVehicleType") || ""
   );
@@ -19,13 +20,12 @@ export default function BookingPage() {
   const [driverInfo, setDriverInfo] = useState(null);
 
   useEffect(() => {
-    // If no vehicle type is found anywhere, redirect back to homepage
+    // If no vehicle type found, go back home
     if (!vehicleType) {
       navigate("/");
       return;
     }
-
-    // Store vehicleType in localStorage (so refresh works)
+    // Save to localStorage so it survives refresh
     localStorage.setItem("selectedVehicleType", vehicleType);
   }, [vehicleType, navigate]);
 
@@ -37,14 +37,14 @@ export default function BookingPage() {
       setDriverInfo(driver);
     });
 
-    // If ride is booked by someone else before our driver accepts
+    // Ride booked by another driver
     socket.on("rideAlreadyBooked", () => {
       console.warn("⚠ Ride already booked by another driver.");
       alert("Ride has already been accepted by another driver.");
       setRideRequested(false);
     });
 
-    // No drivers available
+    // No drivers found
     socket.on("noDriversAvailable", () => {
       console.warn("❌ No drivers found for this vehicle type.");
       alert("No drivers available for the selected vehicle type nearby.");
@@ -58,17 +58,35 @@ export default function BookingPage() {
     };
   }, []);
 
-  const handleRideRequest = (rideDetails) => {
-    setRideRequested(true);
+  const handleRideRequest = async (rideDetails) => {
+    try {
+      setRideRequested(true);
 
-    const ridePayload = {
-      ...rideDetails, // contains bookingId, pickupLocation, dropLocation, etc.
-      vehicleType, // from state (URL or localStorage)
-    };
+      // Save ride to backend DB
+      const res = await axios.post(
+        "http://localhost:8080/api/ride-requests",
+        {
+          ...rideDetails, // bookingId, pickupLocation, dropLocation, etc.
+          vehicleType,
+        }
+      );
 
-    console.log("📤 Sending ride request to backend:", ridePayload);
+      const savedRide = res.data;
+      console.log("💾 Ride saved to backend:", savedRide);
 
-    socket.emit("rideRequest", ridePayload);
+      // Notify drivers via Socket.IO
+      const ridePayload = {
+        ...savedRide,
+        vehicleType,
+      };
+      console.log("📤 Sending ride request via socket:", ridePayload);
+      socket.emit("rideRequest", ridePayload);
+
+    } catch (err) {
+      console.error("Error creating ride request:", err);
+      alert("Failed to send ride request. Please try again.");
+      setRideRequested(false);
+    }
   };
 
   return (

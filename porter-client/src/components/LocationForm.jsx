@@ -1,6 +1,6 @@
 // File: src/components/LocationForm.jsx
 import React, { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { useJsApiLoader } from "@react-google-maps/api";
 import GoogleAutocompleteInput from "./GoogleAutocompleteInput";
 import socket from "../socket/socket";
@@ -28,10 +28,8 @@ function calculateFare(distanceInKm) {
 
 export default function LocationForm({ vehicleType: vehicleTypeProp }) {
   const params = useParams();
-  const navigate = useNavigate();
   const { isLoaded } = useJsApiLoader({ googleMapsApiKey: API_KEY, libraries });
 
-  // Always try props first, then URL params, then localStorage
   const vehicleType =
     vehicleTypeProp ||
     params.vehicleType ||
@@ -40,22 +38,19 @@ export default function LocationForm({ vehicleType: vehicleTypeProp }) {
 
   const [pickup, setPickup] = useState(null);
   const [drop, setDrop] = useState(null);
-  const [distance, setDistance] = useState(null);
-  const [fare, setFare] = useState(null);
   const [loading, setLoading] = useState(false);
   const [requestSent, setRequestSent] = useState(false);
   const [confirmedDriver, setConfirmedDriver] = useState(null);
 
   const userId = localStorage.getItem("userId") || "guest";
 
-  // Save vehicleType for refresh persistence
   useEffect(() => {
     if (vehicleType) {
       localStorage.setItem("selectedVehicleType", vehicleType);
     }
   }, [vehicleType]);
 
-  // Listen for backend responses
+  // Socket listeners
   useEffect(() => {
     socket.on("ride-confirmed", (data) => {
       if (data.vehicleType === vehicleType) {
@@ -68,75 +63,84 @@ export default function LocationForm({ vehicleType: vehicleTypeProp }) {
     });
 
     return () => {
-      socket.off("ride-confirmed");
+      socket.off("ride-confirmed"); 
       socket.off("ride-unavailable");
     };
   }, [vehicleType]);
 
-  // Estimate fare
-  const handleEstimate = () => {
+  // Send booking request in one go
+  const handleBooking = async () => {     // book a truck in 
     if (!pickup?.lat || !pickup?.lng || !drop?.lat || !drop?.lng) {
       alert("❗ Please select both pickup and drop locations.");
       return;
     }
 
     setLoading(true);
-    const service = new window.google.maps.DistanceMatrixService();
 
-    service.getDistanceMatrix(
-      {
-        origins: [{ lat: pickup.lat, lng: pickup.lng }],
-        destinations: [{ lat: drop.lat, lng: drop.lng }],
-        travelMode: window.google.maps.TravelMode.DRIVING,
-        unitSystem: window.google.maps.UnitSystem.METRIC,
-      },
-      (response, status) => {
-        setLoading(false);
-        if (status !== "OK") {
-          console.error("Distance Matrix Error:", status, response);
-          alert("❌ Failed to fetch distance.");
-          return;
-        }
+    try {
+      const service = new window.google.maps.DistanceMatrixService();
+      service.getDistanceMatrix(
+        {
+          origins: [{ lat: pickup.lat, lng: pickup.lng }],
+          destinations: [{ lat: drop.lat, lng: drop.lng }],
+          travelMode: window.google.maps.TravelMode.DRIVING,
+          unitSystem: window.google.maps.UnitSystem.METRIC,
+        },
+        async (response, status) => {
+          if (status !== "OK") {
+            setLoading(false);
+            alert("❌ Failed to fetch distance.");
+            return;
+          }
 
-        const result = response.rows[0].elements[0];
-        if (result.status === "OK") {
+          const result = response.rows[0].elements[0];
+          if (result.status !== "OK") {
+            setLoading(false);
+            alert("🚫 No route found.");
+            return;
+          }
+
           const distanceInKm = result.distance.value / 1000;
-          setDistance(distanceInKm.toFixed(1));
-          setFare(calculateFare(distanceInKm));
-        } else {
-          alert("🚫 No route found.");
+          const fare = calculateFare(distanceInKm);
+
+          const bookingRequest = {
+            vehicleType,
+            userId,
+            pickupLocation: {
+              lat: pickup.lat,
+              lng: pickup.lng,
+              address: pickup.address,
+            },
+            dropLocation: {
+              lat: drop.lat,
+              lng: drop.lng,
+              address: drop.address,
+            },
+            fareEstimate: fare,
+          };
+
+          // Store for reference
+          localStorage.setItem("lastRideRequest", JSON.stringify(bookingRequest));
+
+          // 1️⃣ Save to DB
+          await fetch("http://localhost:8080/api/ride-requests", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(bookingRequest),
+});
+
+          // 2️⃣ Emit to drivers
+          socket.emit("ride-request", bookingRequest);
+
+          setLoading(false);
+          setRequestSent(true);
         }
-      }
-    );
-  };
-
-  // Send booking request
-  const handleBooking = () => {
-    if (!pickup || !drop || !fare) {
-      alert("Please provide pickup, drop, and fare.");
-      return;
+      );
+    } catch (error) {
+      console.error(error);
+      setLoading(false);
+      alert("🚫 Error sending ride request.");
     }
-
-    const bookingRequest = {
-      vehicleType,
-      userId,
-      pickupLocation: {
-        lat: pickup.lat,
-        lng: pickup.lng,
-        address: pickup.address,
-      },
-      dropLocation: {
-        lat: drop.lat,
-        lng: drop.lng,
-        address: drop.address,
-      },
-      fareEstimate: fare,
-    };
-
-    localStorage.setItem("lastRideRequest", JSON.stringify(bookingRequest));
-
-    socket.emit("ride-request", bookingRequest);
-    setRequestSent(true);
   };
 
   if (!isLoaded) return <div>Loading Map...</div>;
@@ -171,38 +175,18 @@ export default function LocationForm({ vehicleType: vehicleTypeProp }) {
             />
           </div>
 
-          {/* Estimate Fare */}
-          <button
-            onClick={handleEstimate}
-            disabled={loading}
-            className={`w-full text-white font-bold py-3 rounded-xl ${
-              loading
-                ? "bg-purple-300 cursor-not-allowed"
-                : "bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
-            }`}
-          >
-            {loading ? "Estimating..." : "🚦 Estimate Fare"}
-          </button>
-
-          {/* Fare Display */}
-          {distance && (
-            <div className="bg-gray-50 p-5 rounded-xl text-center">
-              <p className="text-gray-700 text-lg">
-                <strong>Distance:</strong> {distance} km
-              </p>
-              <p className="text-gray-700 text-lg">
-                <strong>Estimated Fare:</strong> ₹{fare}
-              </p>
-            </div>
-          )}
-
-          {/* Send Request */}
-          {fare && !confirmedDriver && (
+          {/* Send Request in One Go */}
+          {!confirmedDriver && (
             <button
               onClick={handleBooking}
-              className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 mt-2 rounded-xl"
+              disabled={loading}
+              className={`w-full text-white font-bold py-3 rounded-xl ${
+                loading
+                  ? "bg-purple-300 cursor-not-allowed"
+                  : "bg-gradient-to-r from-green-500 to-green-700 hover:from-green-600 hover:to-green-800"
+              }`}
             >
-              📡 Send Ride Request
+              {loading ? "⏳ Sending Request..." : "📡 Send Ride Request"}
             </button>
           )}
 
@@ -213,7 +197,7 @@ export default function LocationForm({ vehicleType: vehicleTypeProp }) {
             </div>
           )}
 
-          {/* Waiting Status */}
+          {/* Waiting */}
           {requestSent && !confirmedDriver && (
             <div className="text-center text-yellow-600 font-semibold text-lg mt-4 animate-pulse">
               ⏳ Looking for a {vehicleType} driver nearby...
