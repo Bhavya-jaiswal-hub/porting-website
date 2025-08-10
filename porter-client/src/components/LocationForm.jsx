@@ -63,13 +63,13 @@ export default function LocationForm({ vehicleType: vehicleTypeProp }) {
     });
 
     return () => {
-      socket.off("ride-confirmed"); 
+      socket.off("ride-confirmed");
       socket.off("ride-unavailable");
     };
   }, [vehicleType]);
 
-  // Send booking request in one go
-  const handleBooking = async () => {     // book a truck in 
+  // Send booking request
+  const handleBooking = async () => {
     if (!pickup?.lat || !pickup?.lng || !drop?.lat || !drop?.lng) {
       alert("❗ Please select both pickup and drop locations.");
       return;
@@ -119,18 +119,24 @@ export default function LocationForm({ vehicleType: vehicleTypeProp }) {
             fareEstimate: fare,
           };
 
-          // Store for reference
-          localStorage.setItem("lastRideRequest", JSON.stringify(bookingRequest));
+          // Save ride request in DB
+          const res = await fetch("http://localhost:8080/api/ride-requests", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(bookingRequest),
+          });
 
-          // 1️⃣ Save to DB
-          await fetch("http://localhost:8080/api/ride-requests", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify(bookingRequest),
-});
+          const savedBooking = await res.json();
 
-          // 2️⃣ Emit to drivers
-          socket.emit("ride-request", bookingRequest);
+          // ✅ Use bookingId from backend response
+          const bookingId = savedBooking.bookingId;
+
+          if (!bookingId) {
+            throw new Error("Failed to get bookingId from backend");
+          }
+
+          // Send only bookingId to backend via socket
+          socket.emit("ride-request", { bookingId });
 
           setLoading(false);
           setRequestSent(true);
@@ -175,7 +181,7 @@ export default function LocationForm({ vehicleType: vehicleTypeProp }) {
             />
           </div>
 
-          {/* Send Request in One Go */}
+          {/* Send Request */}
           {!confirmedDriver && (
             <button
               onClick={handleBooking}
