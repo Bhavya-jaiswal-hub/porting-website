@@ -136,7 +136,8 @@ export default function LocationForm({ vehicleType: vehicleTypeProp }) {
           }
 
           // Send only bookingId to backend via socket
-          socket.emit("ride-request", { bookingId });
+          console.log("Sending rideRequest for bookingId:", bookingId);
+        socket.emit("rideRequest", { bookingId });
 
           setLoading(false);
           setRequestSent(true);

@@ -80,7 +80,8 @@ export default function BookingPage() {
         vehicleType,
       };
       console.log("📤 Sending ride request via socket:", ridePayload);
-      socket.emit("rideRequest", ridePayload);
+      socket.emit("rideRequest", { bookingId: savedRide.bookingId });
+
 
     } catch (err) {
       console.error("Error creating ride request:", err);
