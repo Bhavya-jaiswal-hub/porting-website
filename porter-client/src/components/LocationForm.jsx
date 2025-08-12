@@ -1,14 +1,14 @@
 // File: src/components/LocationForm.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { useJsApiLoader } from "@react-google-maps/api";
 import GoogleAutocompleteInput from "./GoogleAutocompleteInput";
 import socket from "../socket/socket";
+import { useAuth } from "../context/AuthContext";
 
 const API_KEY = "AIzaSyAFh8YiJxXIUKPpn54IUORCf3IePgsO-nc";
 const libraries = ["places"];
 
-// Fare calculation helper
 function calculateFare(distanceInKm) {
   const baseFare = 40;
   const now = new Date();
@@ -29,20 +29,27 @@ function calculateFare(distanceInKm) {
 export default function LocationForm({ vehicleType: vehicleTypeProp }) {
   const params = useParams();
   const { isLoaded } = useJsApiLoader({ googleMapsApiKey: API_KEY, libraries });
+  const { token } = useAuth();
 
-  const vehicleType =
+  // Normalize and persist vehicleType
+  const rawVehicleType =
     vehicleTypeProp ||
     params.vehicleType ||
     localStorage.getItem("selectedVehicleType") ||
     "";
+  const vehicleType = String(rawVehicleType).trim().toLowerCase();
 
   const [pickup, setPickup] = useState(null);
   const [drop, setDrop] = useState(null);
   const [loading, setLoading] = useState(false);
   const [requestSent, setRequestSent] = useState(false);
   const [confirmedDriver, setConfirmedDriver] = useState(null);
+  const [statusMsg, setStatusMsg] = useState("");
 
-  const userId = localStorage.getItem("userId") || "guest";
+  // Track current booking to ignore stray events
+  const activeBookingIdRef = useRef(null);
+  // Optional: cancel find-driver after a while
+  const timeoutRef = useRef(null);
 
   useEffect(() => {
     if (vehicleType) {
@@ -50,28 +57,63 @@ export default function LocationForm({ vehicleType: vehicleTypeProp }) {
     }
   }, [vehicleType]);
 
-  // Socket listeners
   useEffect(() => {
-    socket.on("ride-confirmed", (data) => {
-      if (data.vehicleType === vehicleType) {
-        setConfirmedDriver(data.driverName || "Driver 🚚");
-      }
-    });
+    // Ensure a single socket connection across the app
+    if (!socket.connected) {
+      socket.connect();
+    }
 
-    socket.on("ride-unavailable", () => {
+    const onConfirmed = (data) => {
+      // Expecting: { bookingId, driverId, driverName, vehicleType, ... }
+      if (!data?.bookingId || data.bookingId !== activeBookingIdRef.current) return;
+      setConfirmedDriver(data.driverName || "Driver 🚚");
+      setRequestSent(false);
+      setStatusMsg("");
+      // Clear timeout
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    };
+
+    const onUnavailable = (data) => {
+      // Expecting: { bookingId }
+      if (!data?.bookingId || data.bookingId !== activeBookingIdRef.current) return;
+      setRequestSent(false);
+      setStatusMsg("");
+      activeBookingIdRef.current = null;
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
       alert("❌ This ride is no longer available.");
-    });
+    };
+
+    // Consistent customer-facing events
+    socket.on("ride-confirmed", onConfirmed);
+    socket.on("ride-unavailable", onUnavailable);
 
     return () => {
-      socket.off("ride-confirmed");
-      socket.off("ride-unavailable");
+      socket.off("ride-confirmed", onConfirmed);
+      socket.off("ride-unavailable", onUnavailable);
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
     };
-  }, [vehicleType]);
+  }, []);
 
-  // Send booking request
   const handleBooking = async () => {
     if (!pickup?.lat || !pickup?.lng || !drop?.lat || !drop?.lng) {
       alert("❗ Please select both pickup and drop locations.");
+      return;
+    }
+    if (!token) {
+      alert("⚠️ Please log in before booking a ride.");
+      return;
+    }
+    // Prevent duplicate sends for the same pending booking
+    if (requestSent && activeBookingIdRef.current) {
       return;
     }
 
@@ -81,8 +123,8 @@ export default function LocationForm({ vehicleType: vehicleTypeProp }) {
       const service = new window.google.maps.DistanceMatrixService();
       service.getDistanceMatrix(
         {
-          origins: [{ lat: pickup.lat, lng: pickup.lng }],
-          destinations: [{ lat: drop.lat, lng: drop.lng }],
+          origins: [{ lat: Number(pickup.lat), lng: Number(pickup.lng) }],
+          destinations: [{ lat: Number(drop.lat), lng: Number(drop.lng) }],
           travelMode: window.google.maps.TravelMode.DRIVING,
           unitSystem: window.google.maps.UnitSystem.METRIC,
         },
@@ -93,8 +135,8 @@ export default function LocationForm({ vehicleType: vehicleTypeProp }) {
             return;
           }
 
-          const result = response.rows[0].elements[0];
-          if (result.status !== "OK") {
+          const result = response.rows[0]?.elements?.[0];
+          if (!result || result.status !== "OK") {
             setLoading(false);
             alert("🚫 No route found.");
             return;
@@ -104,43 +146,87 @@ export default function LocationForm({ vehicleType: vehicleTypeProp }) {
           const fare = calculateFare(distanceInKm);
 
           const bookingRequest = {
-            vehicleType,
-            userId,
+            vehicleType, // normalized
             pickupLocation: {
-              lat: pickup.lat,
-              lng: pickup.lng,
+              lat: Number(pickup.lat),
+              lng: Number(pickup.lng),
               address: pickup.address,
             },
             dropLocation: {
-              lat: drop.lat,
-              lng: drop.lng,
+              lat: Number(drop.lat),
+              lng: Number(drop.lng),
               address: drop.address,
             },
             fareEstimate: fare,
+            distanceKm: Number(distanceInKm.toFixed(2)),
           };
 
-          // Save ride request in DB
-          const res = await fetch("http://localhost:8080/api/ride-requests", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(bookingRequest),
-          });
+          try {
+            const res = await fetch("http://localhost:8080/api/ride-requests", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify(bookingRequest),
+            });
 
-          const savedBooking = await res.json();
+            const text = await res.text();
+            let payload = {};
+            try {
+              payload = text ? JSON.parse(text) : {};
+            } catch {
+              // keep as empty object for resilience
+            }
 
-          // ✅ Use bookingId from backend response
-          const bookingId = savedBooking.bookingId;
+            if (!res.ok) {
+              const msg =
+                payload?.message ||
+                (typeof text === "string" && text) ||
+                `Request failed with status ${res.status}`;
+              console.warn("Ride request error:", res.status, msg);
+              if (res.status === 401 || res.status === 403) {
+                alert(`🚫 Unauthorized: ${msg}. Please log in again.`);
+              } else {
+                alert(`🚫 Error: ${msg}`);
+              }
+              setLoading(false);
+              return;
+            }
 
-          if (!bookingId) {
-            throw new Error("Failed to get bookingId from backend");
+            // Expect backend: { message, bookingId, ride }
+            const bookingId =
+              payload?.bookingId || payload?.ride?.bookingId || payload?.id || payload?._id;
+
+            if (!bookingId) {
+              throw new Error("Failed to get bookingId from backend");
+            }
+
+            // Correlate subsequent socket events to this booking
+            activeBookingIdRef.current = bookingId;
+
+            // Emit once for server-side filtered dispatch to nearby matching drivers
+            socket.emit("rideRequest", { bookingId });
+
+            setRequestSent(true);
+            setStatusMsg(`⏳ Looking for a ${vehicleType} driver nearby...`);
+            setLoading(false);
+
+            // Optional: timeout to reset UI if no driver confirms in time (e.g., 45s)
+            if (timeoutRef.current) clearTimeout(timeoutRef.current);
+            timeoutRef.current = setTimeout(() => {
+              if (activeBookingIdRef.current === bookingId && !confirmedDriver) {
+                setRequestSent(false);
+                setStatusMsg("");
+                activeBookingIdRef.current = null;
+                alert("⌛ No driver responded in time. Please try again.");
+              }
+            }, 45000);
+          } catch (err) {
+            console.error("Network/parse error:", err);
+            setLoading(false);
+            alert("🚫 Error sending ride request.");
           }
-
-          // Send only bookingId to backend via socket
-          console.log("Sending rideRequest for bookingId:", bookingId);
-        socket.emit("rideRequest", { bookingId });
-
-          setLoading(false);
-          setRequestSent(true);
         }
       );
     } catch (error) {
@@ -160,7 +246,6 @@ export default function LocationForm({ vehicleType: vehicleTypeProp }) {
         </h2>
 
         <div className="space-y-6">
-          {/* Pickup */}
           <div>
             <label className="block text-sm font-semibold text-gray-600 mb-1">
               📍 Pickup Location
@@ -171,7 +256,6 @@ export default function LocationForm({ vehicleType: vehicleTypeProp }) {
             />
           </div>
 
-          {/* Drop */}
           <div>
             <label className="block text-sm font-semibold text-gray-600 mb-1">
               🏁 Drop Location
@@ -182,7 +266,6 @@ export default function LocationForm({ vehicleType: vehicleTypeProp }) {
             />
           </div>
 
-          {/* Send Request */}
           {!confirmedDriver && (
             <button
               onClick={handleBooking}
@@ -197,17 +280,15 @@ export default function LocationForm({ vehicleType: vehicleTypeProp }) {
             </button>
           )}
 
-          {/* Confirmation */}
           {confirmedDriver && (
             <div className="text-center text-green-600 font-semibold text-lg mt-4">
               ✅ Ride confirmed with driver: <strong>{confirmedDriver}</strong>
             </div>
           )}
 
-          {/* Waiting */}
           {requestSent && !confirmedDriver && (
             <div className="text-center text-yellow-600 font-semibold text-lg mt-4 animate-pulse">
-              ⏳ Looking for a {vehicleType} driver nearby...
+              {statusMsg || `⏳ Looking for a ${vehicleType} driver nearby...`}
             </div>
           )}
         </div>

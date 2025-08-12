@@ -3,51 +3,48 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 export const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
-  const [isAuthenticated, setIsAuthenticated] = useState(
-    !!localStorage.getItem("token")
-  );
+  const [token, setToken] = useState(localStorage.getItem("token"));
+  const [userId, setUserId] = useState(localStorage.getItem("userId"));
+  const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem("token"));
 
+  // Keep state in sync with localStorage changes (multi-tab support)
   useEffect(() => {
-    const checkToken = () => {
-      const token = localStorage.getItem("token");
-      setIsAuthenticated(!!token);
+    const checkAuth = () => {
+      const storedToken = localStorage.getItem("token");
+      const storedUserId = localStorage.getItem("userId");
+      setToken(storedToken);
+      setUserId(storedUserId);
+      setIsAuthenticated(!!storedToken);
     };
 
-    checkToken();
-
-    const handleStorageChange = () => checkToken();
-    window.addEventListener("storage", handleStorageChange);
-
-    return () => {
-      window.removeEventListener("storage", handleStorageChange);
-    };
+    checkAuth();
+    window.addEventListener("storage", checkAuth);
+    return () => window.removeEventListener("storage", checkAuth);
   }, []);
 
-  const login = (token) => {
+  const login = (token, userId) => {
     localStorage.setItem("token", token);
+    localStorage.setItem("userId", userId);
+    setToken(token);
+    setUserId(userId);
     setIsAuthenticated(true);
   };
 
   const logout = () => {
     localStorage.removeItem("token");
+    localStorage.removeItem("userId");
+    setToken(null);
+    setUserId(null);
     setIsAuthenticated(false);
   };
 
   return (
-    <AuthContext.Provider
-      value={{
-        isAuthenticated,
-        setIsAuthenticated, // ✅ Expose this to fix the error
-        login,
-        logout,
-      }}
-    >
+    <AuthContext.Provider value={{ isAuthenticated, token, userId, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
-// ✅ Custom hook for consuming context
 export function useAuth() {
   return useContext(AuthContext);
 }
