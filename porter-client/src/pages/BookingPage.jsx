@@ -1,4 +1,3 @@
-// File: src/pages/BookingPage.jsx
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import LocationForm from "../components/LocationForm";
@@ -10,7 +9,6 @@ export default function BookingPage() {
   const params = useParams();
   const navigate = useNavigate();
 
-  // Get vehicleType from URL or localStorage
   const [vehicleType, setVehicleType] = useState(
     params.vehicleType || localStorage.getItem("selectedVehicleType") || ""
   );
@@ -18,33 +16,50 @@ export default function BookingPage() {
   const [rideRequested, setRideRequested] = useState(false);
   const [rideConfirmed, setRideConfirmed] = useState(false);
   const [driverInfo, setDriverInfo] = useState(null);
+  const [isSocketReady, setIsSocketReady] = useState(false);
 
+  // ✅ Check socket connection immediately on page load
   useEffect(() => {
-    // If no vehicle type found, go back home
+    socket.on("connect", () => {
+      console.log("🟢 Connected to backend socket:", socket.id);
+      setIsSocketReady(true);
+      // Optional: send a test event to backend
+      socket.emit("test-event");
+    });
+
+    socket.on("test-response", (data) => {
+      console.log("📦 Test response from backend:", data);
+    });
+
+    return () => {
+      socket.off("connect");
+      socket.off("test-response");
+    };
+  }, []);
+
+  // Save vehicle type or redirect if missing
+  useEffect(() => {
     if (!vehicleType) {
       navigate("/");
       return;
     }
-    // Save to localStorage so it survives refresh
     localStorage.setItem("selectedVehicleType", vehicleType);
   }, [vehicleType, navigate]);
 
+  // Ride-related socket listeners
   useEffect(() => {
-    // Listen for driver acceptance
-    socket.on("rideAccepted", (driver) => {
-      console.log("✅ Ride accepted by driver:", driver);
+    socket.on("ride-confirmed", (driver) => {
+      console.log("✅ Ride confirmed by driver:", driver);
       setRideConfirmed(true);
       setDriverInfo(driver);
     });
 
-    // Ride booked by another driver
     socket.on("rideAlreadyBooked", () => {
       console.warn("⚠ Ride already booked by another driver.");
       alert("Ride has already been accepted by another driver.");
       setRideRequested(false);
     });
 
-    // No drivers found
     socket.on("noDriversAvailable", () => {
       console.warn("❌ No drivers found for this vehicle type.");
       alert("No drivers available for the selected vehicle type nearby.");
@@ -52,7 +67,7 @@ export default function BookingPage() {
     });
 
     return () => {
-      socket.off("rideAccepted");
+      socket.off("ride-confirmed");
       socket.off("rideAlreadyBooked");
       socket.off("noDriversAvailable");
     };
@@ -60,28 +75,30 @@ export default function BookingPage() {
 
   const handleRideRequest = async (rideDetails) => {
     try {
+      if (!isSocketReady) {
+        alert("Socket not ready yet, please wait a moment and try again.");
+        return;
+      }
+
       setRideRequested(true);
 
-      // Save ride to backend DB
+     console.log("📡 About to send booking request. socket.connected =", socket.connected, "socket.id =", socket.id);
+
+
       const res = await axios.post(
         "http://localhost:8080/api/ride-requests",
         {
-          ...rideDetails, // bookingId, pickupLocation, dropLocation, etc.
+          ...rideDetails,
           vehicleType,
+          userSocketId: socket.id, // ✅ send the live socket ID
         }
       );
 
-      const savedRide = res.data;
+      const savedRide = res.data.ride;
       console.log("💾 Ride saved to backend:", savedRide);
 
       // Notify drivers via Socket.IO
-      const ridePayload = {
-        ...savedRide,
-        vehicleType,
-      };
-      console.log("📤 Sending ride request via socket:", ridePayload);
       socket.emit("rideRequest", { bookingId: savedRide.bookingId });
-
 
     } catch (err) {
       console.error("Error creating ride request:", err);
@@ -93,7 +110,6 @@ export default function BookingPage() {
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-blue-100 via-purple-100 to-pink-100">
       <Navbar />
-
       <main className="flex-grow flex items-center justify-center p-4">
         <div className="w-full max-w-4xl bg-white rounded-2xl shadow-xl p-8">
           <h2 className="text-2xl font-bold text-center text-purple-700 mb-4">
@@ -112,8 +128,8 @@ export default function BookingPage() {
 
           {rideConfirmed && (
             <div className="text-center mt-10 text-green-600">
-              ✅ Ride confirmed with driver: {driverInfo.name} (📞{" "}
-              {driverInfo.phone})
+              ✅ Ride confirmed with driver: {driverInfo.driverName} (📞{" "}
+              {driverInfo.driverPhone})
             </div>
           )}
         </div>
